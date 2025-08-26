@@ -1,135 +1,67 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-
-type StartResp = {
-  ok: boolean;
-  status: number;
-  data?: any;
-  error?: string;
-};
+import { useState } from "react";
 
 export default function Home() {
-  const [question, setQuestion] = useState('');
-  const [keywords, setKeywords] = useState(''); // comma separated
-  const [namespace, setNamespace] = useState('');
+  const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
-  const [resp, setResp] = useState<StartResp | null>(null);
+  const [message, setMessage] = useState("");
 
-  async function onSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    setResp(null);
-
-    const kw = keywords
-      .split(',')
-      .map(s => s.trim())
-      .filter(Boolean);
+    setMessage("");
 
     try {
-      const r = await fetch('/api/start-report', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question, keywords: kw, namespace }),
+      const res = await fetch("/api/submit", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ query }),
       });
-      const j = await r.json();
-      setResp(j);
+
+      if (!res.ok) {
+        throw new Error(`Server error: ${res.status}`);
+      }
+
+      const data = await res.json();
+      setMessage(`✅ Submitted! Report ID: ${data.reportId}`);
     } catch (err: any) {
-      setResp({ ok: false, status: 0, error: err?.message || 'Request failed' });
+      console.error(err);
+      setMessage("❌ Failed to submit query");
     } finally {
       setLoading(false);
     }
   }
 
-  // Try to find a URL that n8n returns (we’ve used html_url, url in your flows)
-  const reportUrl =
-    (resp?.data && (resp.data.html_url || resp.data.url)) || '';
-
   return (
-    <main style={{ maxWidth: 720, margin: '60px auto', padding: '0 20px', fontFamily: 'system-ui, sans-serif' }}>
-      <h1 style={{ marginBottom: 8 }}>Report Uploader</h1>
-      <p style={{ marginTop: 0, color: '#666' }}>
-        Enter an HMW prompt (question), optional keywords, and (optional) namespace. We’ll send it to n8n and show the link when it’s ready.
-      </p>
-
-      <form onSubmit={onSubmit} style={{ display: 'grid', gap: 14, marginTop: 24 }}>
-        <label>
-          <div style={{ fontWeight: 600, marginBottom: 6 }}>How Might We (question)</div>
-          <textarea
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            required
-            placeholder="How might we…"
-            rows={4}
-            style={{ width: '100%', padding: 10, border: '1px solid #ddd', borderRadius: 8 }}
-          />
+    <main className="flex min-h-screen flex-col items-center justify-center p-6">
+      <h1 className="text-3xl font-bold mb-4">Report Builder</h1>
+      <form
+        onSubmit={handleSubmit}
+        className="w-full max-w-md bg-white shadow-md rounded p-6"
+      >
+        <label htmlFor="query" className="block text-sm font-medium mb-2">
+          Describe your problem or idea:
         </label>
-
-        <label>
-          <div style={{ fontWeight: 600, marginBottom: 6 }}>Keywords (comma separated)</div>
-          <input
-            value={keywords}
-            onChange={(e) => setKeywords(e.target.value)}
-            placeholder="banking, canada, onboarding"
-            style={{ width: '100%', padding: 10, border: '1px solid #ddd', borderRadius: 8 }}
-          />
-        </label>
-
-        <label>
-          <div style={{ fontWeight: 600, marginBottom: 6 }}>Namespace (optional)</div>
-          <input
-            value={namespace}
-            onChange={(e) => setNamespace(e.target.value)}
-            placeholder="260825-general"
-            style={{ width: '100%', padding: 10, border: '1px solid #ddd', borderRadius: 8 }}
-          />
-        </label>
-
+        <textarea
+          id="query"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="w-full border rounded p-2 mb-4"
+          rows={5}
+          required
+        />
         <button
           type="submit"
           disabled={loading}
-          style={{
-            padding: '12px 16px',
-            borderRadius: 8,
-            border: 'none',
-            background: '#111827',
-            color: 'white',
-            fontWeight: 600,
-            cursor: loading ? 'not-allowed' : 'pointer'
-          }}
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:bg-gray-400"
         >
-          {loading ? 'Sending to n8n…' : 'Build Report'}
+          {loading ? "Submitting..." : "Submit"}
         </button>
       </form>
-
-      {resp && (
-        <div style={{ marginTop: 28, padding: 16, border: '1px solid #e5e7eb', borderRadius: 8 }}>
-          <div style={{ fontWeight: 700, marginBottom: 8 }}>Result</div>
-          {!resp.ok && (
-            <div style={{ color: '#b91c1c', marginBottom: 8 }}>
-              Error (status {resp.status}): {resp.error || JSON.stringify(resp.data)}
-            </div>
-          )}
-
-          {reportUrl ? (
-            <div>
-              <div style={{ marginBottom: 6 }}>Report URL:</div>
-              <a
-                href={reportUrl}
-                target="_blank"
-                rel="noreferrer"
-                style={{ color: '#2563eb', textDecoration: 'underline' }}
-              >
-                {reportUrl}
-              </a>
-            </div>
-          ) : (
-            <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0 }}>
-              {JSON.stringify(resp.data ?? resp, null, 2)}
-            </pre>
-          )}
-        </div>
-      )}
+      {message && <p className="mt-4">{message}</p>}
     </main>
   );
 }
