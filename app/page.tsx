@@ -18,7 +18,7 @@ export default function Home() {
       // Call your n8n webhook (use the PRODUCTION webhook).
       // Put this in Vercel env: NEXT_PUBLIC_N8N_WEBHOOK_URL
       const webhook = process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL!;
-      const res = await fetch(webhook, {
+      const res = await fetch('/api/report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question: problem }),
