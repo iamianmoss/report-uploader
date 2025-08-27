@@ -1,53 +1,48 @@
 'use client';
-
 import { useState } from 'react';
+import { sbBrowser } from '@/lib/supabase-browser';
 
-export default function LoginPage({
-  searchParams,
-}: { searchParams?: { next?: string } }) {
-  const next = searchParams?.next || '/';
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+export default function Login() {
+  const [email, setEmail] = useState('');
+  const [sent, setSent] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
-  async function submit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
-    setError(null);
-    try {
-      const r = await fetch('/api/login', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ password, next }),
-      });
-      if (r.ok) {
-        const { redirectTo } = await r.json();
-        window.location.href = redirectTo || '/';
-      } else {
-        const { error } = await r.json().catch(() => ({ error: 'Login failed' }));
-        setError(error || 'Login failed');
+    setErr(null);
+    const supabase = sbBrowser();
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: typeof window !== 'undefined'
+          ? `${window.location.origin}/auth/callback`
+          : undefined
       }
-    } finally {
-      setLoading(false);
-    }
+    });
+    if (error) setErr(error.message);
+    else setSent(true);
   }
 
   return (
-    <main style={{ maxWidth: 420, margin: '80px auto', padding: 24 }}>
-      <h1>Sign in</h1>
-      <form onSubmit={submit} style={{ display: 'grid', gap: 12 }}>
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={e => setPassword(e.target.value)}
-          style={{ padding: 10, width: '100%' }}
-        />
-        <button type="submit" disabled={loading} style={{ padding: 10 }}>
-          {loading ? 'Signing in…' : 'Sign in'}
-        </button>
-        {error && <div style={{ color: 'crimson' }}>{error}</div>}
-      </form>
+    <main style={{ maxWidth: 420, margin: '6rem auto', padding: 16 }}>
+      <h1 style={{ fontSize: 28, marginBottom: 8 }}>Sign in</h1>
+      {!sent ? (
+        <form onSubmit={onSubmit}>
+          <input
+            type="email"
+            value={email}
+            onChange={e=>setEmail(e.target.value)}
+            placeholder="you@domain.com"
+            style={{ width:'100%', padding:12, border:'1px solid #ddd', borderRadius:8, marginBottom:12 }}
+          />
+          <button style={{ padding:'10px 14px', borderRadius:8, border:0, background:'#111', color:'#fff' }}>
+            Send magic link
+          </button>
+          {err && <p style={{ color:'#b00020', marginTop:8 }}>{err}</p>}
+        </form>
+      ) : (
+        <p>Check your email for the sign-in link.</p>
+      )}
     </main>
   );
 }
