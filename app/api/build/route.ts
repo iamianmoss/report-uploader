@@ -1,54 +1,74 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { put } from '@vercel/blob';
+// app/api/build/route.ts
+import { NextResponse, NextRequest } from 'next/server';
 
 export const runtime = 'edge';
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+
+const CORS = {
+  'Access-Control-Allow-Origin': '*', // or lock to 'https://selectstart.ai'
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, x-n8n-secret',
+  'Cache-Control': 'no-store',
+};
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: CORS });
+}
 
 export async function POST(req: NextRequest) {
   try {
-    const { prompt } = await req.json();
-    if (!prompt || typeof prompt !== 'string') {
-      return NextResponse.json({ error: 'Missing "prompt"' }, { status: 400 });
+    const body = await req.json().catch(() => ({}));
+    const prompt: string = (body?.prompt ?? '').toString().trim();
+    if (!prompt) {
+      return NextResponse.json(
+        { error: 'Missing "prompt"' },
+        { status: 400, headers: CORS }
+      );
     }
 
-    const webhook = process.env.N8N_WEBHOOK_URL;
-    const secret  = process.env.N8N_SHARED_SECRET || '';
-    if (!webhook || !secret) {
-      return NextResponse.json({ error: 'Server not configured' }, { status: 500 });
-    }
+    // ---- call n8n webhook (keep your existing logic here) ----
+    const url = process.env.N8N_WEBHOOK_URL!;
+    const secret = process.env.N8N_SHARED_SECRET!;
 
-    // Create a job id the UI can poll on
-    const request_id = crypto.randomUUID();
+    const payload = {
+      prompt,
+      source: 'web',
+      ts: Date.now(),
+    };
 
-    // (optional but nice) write a pending status blob now
-    const key = `statuses/${request_id}.json`;
-    await put(key, JSON.stringify({ ready: false, ts: Date.now(), prompt }), {
-      access: 'public',
-      contentType: 'application/json; charset=utf-8',
-      addRandomSuffix: false,
-      token: process.env.REPORTS_READ_WRITE_TOKEN,
-    });
-
-    // Fire-and-forget call to n8n (do NOT await completion)
-    fetch(webhook, {
+    const res = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-n8n-secret': secret,
       },
-      body: JSON.stringify({
-        content: prompt,     // matches your n8n flow’s expected field
-        request_id,
-        source: 'web',
-        ts: Date.now(),
-      }),
-    }).catch(() => { /* ignore */ });
+      body: JSON.stringify(payload),
+    });
 
-    const status_url = `/api/status?request_id=${encodeURIComponent(request_id)}`;
+    const data = await res.json().catch(() => ({} as any));
+
+    if (!res.ok) {
+      return NextResponse.json(
+        { error: data?.error || 'n8n returned an error', details: data, status: res.status },
+        { status: res.status, headers: CORS }
+      );
+    }
+
+    // normalize common keys your UI expects
     return NextResponse.json(
-      { accepted: true, request_id, status_url },
-      { status: 202 }
+      {
+        success: true,
+        html_url: data.html_url || data.url || data.report_url,
+        filename: data.filename,
+        message: data.message,
+      },
+      { status: 200, headers: CORS }
     );
   } catch (err: any) {
-    return NextResponse.json({ error: err?.message || 'Server error' }, { status: 500 });
+    return NextResponse.json(
+      { error: err?.message || 'Unknown server error' },
+      { status: 500, headers: CORS }
+    );
   }
 }
