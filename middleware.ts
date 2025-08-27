@@ -1,36 +1,38 @@
 // middleware.ts
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
+import { NextResponse, NextRequest } from 'next/server';
 
-const COOKIE = 'ss-session';
+// Paths that should skip auth middleware
+const PUBLIC_PATHS = [
+  '/login',
+  '/api/build',     // UI -> n8n kick-off
+  '/api/upload',    // n8n -> Vercel Blob
+  '/report',        // your UI page
+  '/favicon.ico',
+];
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // allow public assets, favicon, Next internals, and the auth endpoints/pages
+  // Skip middleware for public paths and static
   if (
-    pathname.startsWith('/_next') ||
-    pathname.startsWith('/favicon') ||
-    pathname.startsWith('/login') ||
-    pathname.startsWith('/api/login') ||
-    pathname.startsWith('/api/upload') // allow programmatic access (we’ll still check header inside the route)
+    PUBLIC_PATHS.some((p) => pathname.startsWith(p)) ||
+    pathname.startsWith('/_next/') ||
+    pathname.match(/\.(png|jpg|jpeg|gif|svg|ico|css|js|txt)$/)
   ) {
     return NextResponse.next();
   }
 
-  // check session cookie
-  const session = req.cookies.get(COOKIE)?.value;
-  if (session === 'ok') {
-    return NextResponse.next();
-  }
+  // Simple cookie gate (mirror your current check)
+  const ok = req.cookies.get('app_auth')?.value === process.env.APP_PASSWORD;
+  if (ok) return NextResponse.next();
 
-  // not logged in → redirect to /login?next=<original>
+  // Not authenticated → redirect to /login
   const url = req.nextUrl.clone();
   url.pathname = '/login';
-  url.searchParams.set('next', pathname || '/');
   return NextResponse.redirect(url);
 }
 
 export const config = {
-  matcher: ['/((?!api/.*).*)', '/api/upload'], // run on all pages and upload API (upload still checks header)
+  // run on everything except the asset folder
+  matcher: ['/((?!.*\\.(?:png|jpg|jpeg|gif|svg|ico|css|js|txt)$).*)'],
 };
