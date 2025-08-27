@@ -1,38 +1,36 @@
-// middleware.ts
-import { NextResponse, NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
 
-// Paths that should skip auth middleware
 const PUBLIC_PATHS = [
   '/login',
-  '/api/build',     // UI -> n8n kick-off
-  '/api/upload',    // n8n -> Vercel Blob
-  '/report',        // your UI page
-  '/favicon.ico',
+  '/api/build',             // your n8n kickoff
+  '/api/build/complete',    // n8n callback
+  '/api/build/result',      // UI polling (if used)
+  '/api/upload',            // if n8n uploads HTML here
+  '/favicon.ico','/robots.txt','/sitemap.xml'
 ];
 
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Skip middleware for public paths and static
+  // allow public + Next internals
   if (
-    PUBLIC_PATHS.some((p) => pathname.startsWith(p)) ||
     pathname.startsWith('/_next/') ||
-    pathname.match(/\.(png|jpg|jpeg|gif|svg|ico|css|js|txt)$/)
-  ) {
-    return NextResponse.next();
-  }
+    PUBLIC_PATHS.some(p => pathname === p || pathname.startsWith(p + '/'))
+  ) return NextResponse.next();
 
-  // Simple cookie gate (mirror your current check)
-  const ok = req.cookies.get('app_auth')?.value === process.env.APP_PASSWORD;
-  if (ok) return NextResponse.next();
+  const res = NextResponse.next();
+  const supabase = createMiddlewareClient({ req, res });
 
-  // Not authenticated → redirect to /login
+  const { data: { session } } = await supabase.auth.getSession();
+
+  if (session) return res;
+
+  // no session → redirect to login
   const url = req.nextUrl.clone();
   url.pathname = '/login';
+  url.searchParams.set('next', pathname);
   return NextResponse.redirect(url);
 }
 
-export const config = {
-  // run on everything except the asset folder
-  matcher: ['/((?!.*\\.(?:png|jpg|jpeg|gif|svg|ico|css|js|txt)$).*)'],
-};
+export const config = { matcher: ['/((?!_next/static|_next/image|assets).*)'] };
