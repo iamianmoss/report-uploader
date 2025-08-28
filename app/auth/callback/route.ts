@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sbServer } from '@/lib/supabase-server';
+import { sbServer } from '@/lib/supabase/server';
 
 export async function GET(req: NextRequest) {
   const res = NextResponse.redirect(new URL('/', req.url));
