@@ -1,8 +1,20 @@
 import { cookies } from 'next/headers';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
 
-export const createSupabaseServerClient = (): SupabaseClient =>
-  // Reads NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY
-  // and binds auth cookies automatically.
-  createRouteHandlerClient({ cookies });
+export function sbServer() {
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get: (name: string) => cookies().get(name)?.value,
+        set: (name: string, value: string, options: CookieOptions) => {
+          cookies().set({ name, value, ...options });
+        },
+        remove: (name: string, options: CookieOptions) => {
+          cookies().set({ name, value: '', ...options });
+        },
+      },
+    }
+  );
+}
