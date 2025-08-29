@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@vercel/blob": "^0.24.0",
+    "@supabase/supabase-js": "^2.45.4",
     "next": "15.4.6",
     "react": "19.1.0",
     "react-dom": "19.1.0"
